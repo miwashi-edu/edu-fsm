@@ -6,7 +6,6 @@
 from machine import Pin, PWM
 import time
 
-print("Starting FSM")
 # ---------- FSM core ----------
 class State:
     def enter(self, fsm): pass
@@ -67,18 +66,15 @@ event_queue = []
 # ---------- Interrupt ----------
 def make_handler(pin_num):
     def handler(pin):
-        print(f"Installing handler for pin ${pin}")
         now = time.ticks_ms()
         if time.ticks_diff(now, last_press[pin_num]) > 200:
             event_queue.append(pin_num)
             last_press[pin_num] = now
-            print(now)
     return handler
 
 
 for btn, fsm in zip(button_pins, fsms):
     p = Pin(btn, Pin.IN, Pin.PULL_UP)
-    print(f"pinning {btn} {fsm}")
     pin_to_fsm[btn] = fsm
     last_press[btn] = 0
     p.irq(trigger=Pin.IRQ_FALLING, handler=make_handler(btn))
