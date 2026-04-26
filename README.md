@@ -24,15 +24,22 @@ from machine import Pin
 import time
 
 from states.toggle import ToggleFSM
+from states.blink import BlinkFSM
+from states.fade import FadeFSM
+from states.dim import DimFSM
 
-button_pins = [15]
-led_pins = [16]
+# ---------- config ----------
+button_pins = [12, 13, 14, 15]
+led_pins    = [16, 17, 18, 19]
+
+fsm_types = [ToggleFSM, BlinkFSM, FadeFSM, DimFSM]
 
 pin_to_fsm = {}
 event_queue = []
 last_press = {}
 
 
+# ---------- interrupt ----------
 def make_handler(pin_num):
     def handler(pin):
         now = time.ticks_ms()
@@ -42,20 +49,35 @@ def make_handler(pin_num):
     return handler
 
 
-for btn, led in zip(button_pins, led_pins):
+# ---------- setup ----------
+for btn, led, FSMClass in zip(button_pins, led_pins, fsm_types):
 
-    fsm = ToggleFSM(led, Pin)
+    # create FSM with LED ownership
+    if FSMClass.__name__ == "BlinkFSM":
+        fsm = FSMClass(led, Pin, 500)
+    else:
+        fsm = FSMClass(led, Pin)
 
     pin_to_fsm[btn] = fsm
     last_press[btn] = 0
 
+    # button input only (pull-up, active low)
     p = Pin(btn, Pin.IN, Pin.PULL_UP)
     p.irq(trigger=Pin.IRQ_FALLING, handler=make_handler(btn))
 
 
+# ---------- main loop ----------
 while True:
+
+    # handle button events
     while event_queue:
-        pin_to_fsm[event_queue.pop(0)].dispatch("press")
+        btn = event_queue.pop(0)
+        pin_to_fsm[btn].dispatch("press")
+
+    # allow time-based FSMs to run
+    for fsm in pin_to_fsm.values():
+        if hasattr(fsm, "tick"):
+            fsm.tick()
 
     time.sleep_ms(20)
 ```
